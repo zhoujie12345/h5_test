@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>贪吃蛇</title>
+	<style type="text/css">
+		html,body{
+			margin:0;
+			padding:0;
+		}
+		button{
+			display: block;
+			position: relative;
+			margin:50px auto;
+		}
+		p{
+			display: block;
+			text-align: center;
+		}
+	</style>
+</head>
+<body>
+	<button id="btn">开始游戏</button>
+	<p>得分：<label>0</label></p>
+	<div style="width: 800px; height: 500px; background: rgb(204, 204, 204); position: absolute; top:0;bottom:0;left:0;right:0;margin:auto;z-index: -1">
+	</div>
+	<script type="text/javascript" src="js/tools.js"></script>
+	<script type="text/javascript">
+		var count=0;
+		var flag=false;
+		//表示运动方向的对象
+		var Direction={
+			LEFT:Symbol(),//向左走
+			RIGHT:Symbol(),//向右走
+			UP:Symbol(),//向上走
+			DOWN:Symbol()//向下走
+		}; 
+
+		//地图构造函数
+		function Map(options){
+			options=options||{};
+			this.width=options.width||400;
+			this.height=options.height||400;
+			this.element=null;//DOM元素
+			this.food=null;//食物
+			this.snake=null;//蛇
+			this.obstacle=null;//障碍物
+			this.count2=400;
+			this.count1=60000;
+		}
+
+		//初始化地图
+		Map.prototype.init=function(){
+			//创建DOM元素
+			var _div=this.element=document.createElement("div");
+			//设置DOM元素各CSS属性
+			css(_div,{
+				width:this.width+"px",
+				height:this.height+"px",
+				background:"#ccc",
+				position:"absolute",
+				top:"0",
+				bottom:"0",
+				left:"0",
+				right:"0",
+				margin:"auto"
+			});
+
+			//将DOM元素添加到页面显示
+			$("body")[0].appendChild(_div);
+		}
+
+		//食物构造函数
+		function Food(width,height){
+			this.width=width;
+			this.height=height;
+			this.element=null;//DOM元素
+			this.x=0;//x坐标
+			this.y=0;//y坐标
+			this.map=null;//所在地图
+		}
+
+		Food.prototype={
+			constructor:Food,
+			init:function(){//初始化
+				// 创建DOM元素
+				var _div=this.element=document.createElement("div");
+				//设置css样式
+				css(_div,{
+					width:this.width+"px",
+					height:this.height+"px",
+					position:"absolute",
+					background:"url(2.png)",
+					zIndex:"0"
+				});
+				//将食物的DOM元素添加到地图的DOM元素内部
+				this.map.element.appendChild(_div);
+			},
+			show:function(){//显示
+				// 划分网格，随机产生食物出现的坐标--在划分的网格坐标系中
+				var _x=this.x=Math.floor(Math.random()*(this.map.width/this.width)),
+					_y=this.y=Math.floor(Math.random()*(this.map.height/this.height));
+					
+				//判断产生的坐标是否位于蛇身体部分，如果在身体部分，则重新生成食物随机坐标
+				var l=this.map.snake.bodies.length;
+				for(var a=0;a<l;a++){
+					if(this.map.snake.bodies[a].x===_x && this.map.snake.bodies[a].y===_y){
+						_x=this.x=Math.floor(Math.random()*(this.map.width/this.width));
+						_y=this.y=Math.floor(Math.random()*(this.map.height/this.height));
+						console.log("食物出现在身体");
+					}
+				}
+
+				// 设置食物DOM元素在地图中的定位位置
+				this.element.style.left=_x*this.width+"px";
+				this.element.style.top=_y*this.height+"px";
+			}
+		};
+
+		//障碍物构造函数
+		function Obstacle(width,height){
+			this.width=width;
+			this.height=height;
+			this.element=null;//DOM元素
+			this.x=0;//x坐标
+			this.y=0;//y坐标
+			this.map=null;//所在地图
+		}
+
+		Obstacle.prototype={
+			constructor:Obstacle,
+			init:function(){//初始化
+				// 创建DOM元素
+				var _div=this.element=document.createElement("div");
+				//设置css样式
+				css(_div,{
+					width:this.width+"px",
+					height:this.height+"px",
+					position:"absolute",
+					display:"none",
+					background:"url(1.png)",
+					zIndex:"1"
+				});
+				//将障碍物的DOM元素添加到地图的DOM元素内部
+				this.map.element.appendChild(_div);
+			},
+			show:function(){//显示
+				// 划分网格，随机产生障碍物出现的坐标--在划分的网格坐标系中
+				// this.element.style.display="block";
+				var _x2=this.x=Math.floor(Math.random()*(this.map.width/this.width)),
+					_y2=this.y=Math.floor(Math.random()*(this.map.height/this.height));
+					
+				//产生的坐标是否位于蛇身体部分，如果在身体部分，则重新生成障碍物随机坐标
+				var l2=this.map.snake.bodies.length;
+				for(var a=0;a<l2;a++){
+					if(this.map.snake.bodies[a].x===_x2 && this.map.snake.bodies[a].y===_y2){
+						_x2=this.x=Math.floor(Math.random()*(this.map.width/this.width));
+						_y2=this.y=Math.floor(Math.random()*(this.map.height/this.height));
+						console.log("障碍物出现在身体");
+					}
+				}
+				//如果障碍物与食物重合了，重新生成障碍物
+				if(this.map.food.x===_x2 && this.map.food.y===_y2){
+					_x2=this.x=Math.floor(Math.random()*(this.map.width/this.width));
+					_y2=this.y=Math.floor(Math.random()*(this.map.height/this.height));
+					console.log("如果障碍物与食物重合了，重新生成障碍物");
+				}
+
+				// 设置障碍物物DOM元素在地图中的定位位置
+				this.element.style.left=_x2*this.width+"px";
+				this.element.style.top=_y2*this.height+"px";
+			}
+		};
+
+		//蛇构造函数
+		function Snake(width,height){
+			this.width=width;
+			this.height=height;
+			this.bodies=[
+				{x:2,y:3,element:null,bgcolor:"url(4.png)"},
+				{x:3,y:3,element:null,bgcolor:"url(4.png)"},
+				{x:4,y:3,element:null,bgcolor:"url(4.png)"},
+				{x:5,y:3,element:null,bgcolor:"url(4.png)"},
+				{x:6,y:3,element:null,bgcolor:"url(4.png)"},
+				{x:7,y:3,element:null,bgcolor:"url(3.png)"}//蛇头部
+			];
+			this.map=null;
+			this.direction=Direction.RIGHT;//运动方向，默认向右运动
+			this.isAlive=true;//标记是否还存活
+		}
+
+		Snake.prototype={
+			show:function(){//显示
+				var that=this;//使用变量暂存this所代表的Snake对象
+				this.bodies.forEach(function(body){
+					var _div=body.element;
+					if(!_div){//蛇身体部分DOM元素不存在，则创建
+						/*创建蛇身体部分的DOM元素*/
+						_div=body.element=document.createElement("div");
+					
+						//将DOM元素追加到地图上显示
+						that.map.element.appendChild(_div);
+					}
+					css(_div,{
+							width:that.width+"px",
+							height:that.height+"px",
+							background:body.bgcolor,
+							position:"absolute",
+							zIndex:"1"
+						});
+					/*定位*/
+					_div.style.left=body.x*that.width+"px";
+					_div.style.top=body.y*that.height+"px";
+				});
+			},
+			move:function(){//移动
+				// 记录尾巴节点坐标
+				var tailX=this.bodies[0].x,
+					tailY=this.bodies[0].y;
+
+				/*身体躯干部分移动*/
+				for(var i=0;i<this.bodies.length-1;i++){
+					this.bodies[i].x=this.bodies[i+1].x;
+					this.bodies[i].y=this.bodies[i+1].y;
+				}
+				/*头部移动*/
+				if(this.direction===Direction.RIGHT){//循环完毕之后，i的值为5，this.bodies[i]代表头部（先改变身体的位置，头后面一个“块"的位置会和头重合，再改变头的位置，以此类推，就会出现蛇移动的情况）
+					this.bodies[i].bgcolor="url(3.png)";
+					this.bodies[0].bgcolor="url(tailr.png)";
+					this.bodies[i].x++;
+				}
+				else if(this.direction===Direction.LEFT){
+					this.bodies[i].bgcolor="url(left.png)";
+					this.bodies[0].bgcolor="url(taill.png)";
+					this.bodies[i].x--;
+				}
+				else if(this.direction===Direction.UP){
+					this.bodies[i].bgcolor="url(up.png)";
+					this.bodies[0].bgcolor="url(tailu.png)";
+					this.bodies[i].y--;
+				}
+				else if(this.direction===Direction.DOWN){
+					this.bodies[i].bgcolor="url(down.png)";
+					this.bodies[0].bgcolor="url(taild.png)";
+					this.bodies[i].y++;
+				}
+				//判断是否吃到食物，循环完毕之后，i的值为5，this.bodies[i]代表头部
+
+				if(this.bodies[this.bodies.length-1].x===this.map.food.x && this.bodies[this.bodies.length-1].y===this.map.food.y){
+					console.log(this.bodies[this.bodies.length-1].x);
+					console.log(this.map.food.x);
+					//吃到食物后，在末尾添加一节
+					// this.bodies.unshift({x:tailX,y:tailY,element:null,bgcolor:"url(4.png)"});
+					this.bodies.splice(1,0,{x:tailX,y:tailY,element:null,bgcolor:"url(4.png)"});
+					//重新生成食物位置
+					this.map.food.show();
+					//吃到一颗食物，分数加一
+					flag=true;
+					count+=10;
+					this.map.count1-=20;
+					this.map.count2-=20;
+					if(this.map.count2<=20){
+						this.map.count2=20;
+					}
+					document.getElementsByTagName("label")[0].innerHTML=count;
+				}
+
+
+				//判断是否撞墙
+				var columns=this.map.width/this.width,
+					rows=this.map.height/this.height;
+
+				if(this.bodies[i].x<0 || this.bodies[i].y<0 || this.bodies[i].x>columns-1||this.bodies[i].y>rows-1){
+					this.isAlive=false;
+					return;
+				}
+
+				// 判断是否吃到障碍物
+				if(this.bodies[i].x===this.map.obstacle.x && this.bodies[i].y===this.map.obstacle.y){
+					this.isAlive=false;
+						return;
+				}
+
+				//是否吃到自己
+				for(var len=this.bodies.length,i=len-2;i>=0;i--){//this.bodies头部
+					if(this.bodies[len-1].x==this.bodies[i].x && this.bodies[len-1].y==this.bodies[i].y){
+						this.isAlive=false;
+						return;
+					}
+				}
+
+				//移动后，再次显示移动效果
+				this.show();
+			},
+			setDirection:function(code){//根据按键码设置运动方向
+				switch(code){
+					case 37:
+						this.direction=Direction.LEFT;
+						break;
+					case 38:
+						this.direction=Direction.UP;
+						break;
+					case 39:
+						this.direction=Direction.RIGHT;
+						break;
+					case 40:
+						this.direction=Direction.DOWN;
+				}
+			}
+		};
+
+		function Game(options){
+			this.options=options||{};
+			this.map=null;
+			this.food=null;
+			this.snake=null;
+			this.obstacle=null;
+
+			this.init();
+		}
+
+		Game.prototype={
+			init:function(){//初始化
+				this.map=new Map(this.options.map);
+				this.food=new Food(20,20);
+				this.obstacle=new Obstacle(20,20);
+				this.snake=new Snake(20,20);
+				this.food.map=this.map;//设置各对象间关联
+				this.obstacle.map=this.map;
+				this.snake.map=this.map;
+				this.map.food=this.food;
+				this.map.obstacle=this.obstacle;
+				this.map.snake=this.snake;
+
+				this.map.init();
+				this.food.init();
+				this.food.show();
+				this.obstacle.init();
+				this.obstacle.show();
+				this.snake.show();
+			},
+			 StartGame:function(){
+				var that=this;
+				
+				var go=function(){
+					that.snake.move();
+					if(!that.snake.isAlive){
+						alert("Game Over！");
+						clearInterval(timer);
+						var divs=$("div");
+						for(var n=1;n<divs.length-1;n++){
+							$("div")[n].style.display="none";
+						}
+						document.getElementsByTagName("label")[0].innerHTML=0;
+						count=0;
+						that.map.count1=60000;
+						that.map.count2=500;
+					}
+					if(flag){//如果吃到食物
+						clearInterval(timer);
+						timer= setInterval(go,that.map.count2);
+						flag=false;
+					}
+				};
+				var timer=setInterval(go,that.map.count2);
+
+				var timer2=setInterval(function(){
+					that.obstacle.init();
+					that.obstacle.show();
+					that.map.obstacle.element.style.display="block";
+					if(!that.snake.isAlive){
+						clearInterval(timer2);
+					}
+				},that.map.count1);
+
+				document.onkeydown=function(e){
+					e=e||event;
+					var code=e.keyCode||e.Which;
+					that.snake.setDirection(code);
+				}
+			}
+		};
+
+		$("#btn").onclick=function(){	
+			
+			var game=new Game({
+				map:{
+					width:800,
+					height:500
+				},
+				food:{},
+				obstacle:{},
+				snake:{}
+			});
+			game.StartGame();
+		}
+	</script>
+</body>
+</html>
